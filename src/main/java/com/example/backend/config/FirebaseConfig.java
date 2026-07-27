@@ -28,19 +28,31 @@ public Firestore firestore() {
             return FirestoreClient.getFirestore();
         }
 
-        InputStream serviceAccount =
-                getClass().getClassLoader()
-                        .getResourceAsStream("firebase-service-account.json");
+        InputStream serviceAccount;
+
+        // First try Render Secret File
+        String secretPath = System.getenv("FIREBASE_CONFIG");
+
+        if (secretPath != null && !secretPath.isBlank()) {
+            serviceAccount = new java.io.FileInputStream(secretPath);
+        } else {
+            // Local development
+            serviceAccount = getClass()
+                    .getClassLoader()
+                    .getResourceAsStream("firebase-service-account.json");
+        }
 
         if (serviceAccount == null) {
-            throw new RuntimeException("firebase-service-account.json not found");
+            throw new RuntimeException("Firebase credentials not found");
         }
 
         FirebaseOptions options = FirebaseOptions.builder()
                 .setCredentials(GoogleCredentials.fromStream(serviceAccount))
                 .build();
 
-        FirebaseApp.initializeApp(options);
+        if (FirebaseApp.getApps().isEmpty()) {
+            FirebaseApp.initializeApp(options);
+        }
 
         return FirestoreClient.getFirestore();
 
