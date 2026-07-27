@@ -5,59 +5,53 @@ import com.google.cloud.firestore.Firestore;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 @Configuration
 public class FirebaseConfig {
 
-    @Value("${firebase.config.path:firebase-service-account.json}")
-    private String configPath;
+    @Bean
+    public Firestore firestore() {
+        try {
+            // Prevent multiple initializations
+            if (!FirebaseApp.getApps().isEmpty()) {
+                return FirestoreClient.getFirestore();
+            }
 
-    @Value("${firebase.project.id:project-726fff49-a0ad-4aa8-990}")
-    private String projectId;
+            InputStream serviceAccount;
 
-@Bean
-public Firestore firestore() {
-    try {
-        if (!FirebaseApp.getApps().isEmpty()) {
-            return FirestoreClient.getFirestore();
-        }
+            // Read Firebase JSON from Render Environment Variable
+            String firebaseJson = System.getenv("FIREBASE_SERVICE_ACCOUNT");
 
-        InputStream serviceAccount;
+            if (firebaseJson != null && !firebaseJson.isBlank()) {
+                serviceAccount = new ByteArrayInputStream(
+                        firebaseJson.getBytes(StandardCharsets.UTF_8));
+            } else {
+                // Local development (uses src/main/resources/firebase-service-account.json)
+                serviceAccount = getClass()
+                        .getClassLoader()
+                        .getResourceAsStream("firebase-service-account.json");
+            }
 
-        // First try Render Secret File
-        String secretPath = System.getenv("FIREBASE_CONFIG");
+            if (serviceAccount == null) {
+                throw new RuntimeException("Firebase credentials not found.");
+            }
 
-        if (secretPath != null && !secretPath.isBlank()) {
-            serviceAccount = new java.io.FileInputStream(secretPath);
-        } else {
-            // Local development
-            serviceAccount = getClass()
-                    .getClassLoader()
-                    .getResourceAsStream("firebase-service-account.json");
-        }
+            FirebaseOptions options = FirebaseOptions.builder()
+                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                    .build();
 
-        if (serviceAccount == null) {
-            throw new RuntimeException("Firebase credentials not found");
-        }
-
-        FirebaseOptions options = FirebaseOptions.builder()
-                .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                .build();
-
-        if (FirebaseApp.getApps().isEmpty()) {
             FirebaseApp.initializeApp(options);
+
+            return FirestoreClient.getFirestore();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize Firebase", e);
         }
-
-        return FirestoreClient.getFirestore();
-
-    } catch (Exception e) {
-        throw new RuntimeException("Failed to initialize Firebase", e);
     }
-}
 }
