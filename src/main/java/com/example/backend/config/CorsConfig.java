@@ -15,10 +15,8 @@ public class CorsConfig {
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
                         .allowedOrigins(
-                                "http://localhost:5173",   // Vite local
-                                "http://localhost:3000"    // CRA local
-                                // Add your deployed frontend URL here later
-                        )
+                                "http://localhost:5173",
+                                "https://tastybite.vercel.app")
                         .allowedMethods("*")
                         .allowedHeaders("*")
                         .allowCredentials(true);
