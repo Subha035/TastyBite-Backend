@@ -58,8 +58,8 @@ public class SecurityConfig {
 
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(List.of(
-                "https://tasty-bite-frontend.vercel.app"
+        config.setAllowedOriginPatterns(List.of(
+                "*"
         ));
 
         config.setAllowedMethods(List.of(
