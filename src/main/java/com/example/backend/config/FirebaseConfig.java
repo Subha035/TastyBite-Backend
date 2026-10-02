@@ -57,6 +57,7 @@ public class FirebaseConfig {
             return FirestoreClient.getFirestore();
 
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException("Failed to initialize Firebase", e);
         }
     }
