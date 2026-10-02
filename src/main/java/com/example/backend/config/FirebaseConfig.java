@@ -12,15 +12,21 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
+import java.util.ArrayList;
+
 @Configuration
 public class FirebaseConfig {
 
     @Bean
     public Firestore firestore() {
         try {
-            // Prevent multiple initializations
+            // Clean up any stale/closed Firebase instances from previous context reloads
             if (!FirebaseApp.getApps().isEmpty()) {
-                return FirestoreClient.getFirestore();
+                for (FirebaseApp app : new ArrayList<>(FirebaseApp.getApps())) {
+                    try {
+                        app.delete();
+                    } catch (Exception ignored) {}
+                }
             }
 
             InputStream serviceAccount;

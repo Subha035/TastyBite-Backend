@@ -11,7 +11,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/orders")
-@CrossOrigin(origins = "*")
+@CrossOrigin(originPatterns = "*")
 public class OrderController {
 
     @Autowired
@@ -33,6 +33,18 @@ public class OrderController {
             @RequestBody Map<String, String> payload) {
         String status = payload.get("status");
         Order updated = firebaseService.updateOrderStatus(id, status);
+        if (updated != null) {
+            return ResponseEntity.ok(updated);
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    @PutMapping("/{id}/payment-status")
+    public ResponseEntity<Order> updateOrderPaymentStatus(
+            @PathVariable String id,
+            @RequestBody Map<String, String> payload) {
+        String paymentStatus = payload.get("paymentStatus");
+        Order updated = firebaseService.updateOrderPaymentStatus(id, paymentStatus);
         if (updated != null) {
             return ResponseEntity.ok(updated);
         }

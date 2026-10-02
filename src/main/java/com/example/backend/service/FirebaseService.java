@@ -11,15 +11,27 @@ import com.google.cloud.firestore.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class FirebaseService {
 
     @Autowired(required = false)
     private Firestore firestore;
+
+    // Fast in-memory cache to avoid remote network latency on every read
+    private final List<MenuItem> cachedMenuItems = new CopyOnWriteArrayList<>();
+    private volatile long lastMenuCacheTime = 0;
+
+    private final List<Offer> cachedOffers = new CopyOnWriteArrayList<>();
+    private volatile long lastOffersCacheTime = 0;
+
+    private static final long CACHE_TTL_MS = 60_000; // 60 seconds cache
 
     // In-memory fallbacks when Firestore credentials are not configured locally
     private final Map<String, MenuItem> memoryMenuItems = new ConcurrentHashMap<>();
@@ -31,6 +43,17 @@ public class FirebaseService {
 
     public FirebaseService() {
         seedInitialData();
+    }
+
+    @PostConstruct
+    public void preWarmCache() {
+        // Pre-warm cache in background on startup so first user request is instant
+        CompletableFuture.runAsync(() -> {
+            try {
+                getAllMenuItems();
+                getAllOffers();
+            } catch (Exception ignored) {}
+        });
     }
 
     private void seedInitialData() {
@@ -70,6 +93,10 @@ public class FirebaseService {
 
     // --- MENU ITEMS ---
     public List<MenuItem> getAllMenuItems() {
+        if (!cachedMenuItems.isEmpty() && (System.currentTimeMillis() - lastMenuCacheTime < CACHE_TTL_MS)) {
+            return new ArrayList<>(cachedMenuItems);
+        }
+
         if (firestore != null) {
             try {
                 ApiFuture<QuerySnapshot> future = firestore.collection("menuItems").get();
@@ -81,6 +108,9 @@ public class FirebaseService {
                         item.setId(doc.getId());
                         items.add(item);
                     }
+                    cachedMenuItems.clear();
+                    cachedMenuItems.addAll(items);
+                    lastMenuCacheTime = System.currentTimeMillis();
                     return items;
                 }
             } catch (Exception e) {
@@ -102,6 +132,9 @@ public class FirebaseService {
             }
         }
         memoryMenuItems.put(item.getId(), item);
+        cachedMenuItems.removeIf(m -> m.getId() != null && m.getId().equals(item.getId()));
+        cachedMenuItems.add(item);
+        lastMenuCacheTime = System.currentTimeMillis();
         return item;
     }
 
@@ -113,6 +146,8 @@ public class FirebaseService {
                 System.err.println("Firestore menu delete error: " + e.getMessage());
             }
         }
+        cachedMenuItems.removeIf(m -> m.getId() != null && m.getId().equals(id));
+        lastMenuCacheTime = System.currentTimeMillis();
         return memoryMenuItems.remove(id) != null;
     }
 
@@ -188,6 +223,10 @@ public class FirebaseService {
 
     // --- OFFERS ---
     public List<Offer> getAllOffers() {
+        if (!cachedOffers.isEmpty() && (System.currentTimeMillis() - lastOffersCacheTime < CACHE_TTL_MS)) {
+            return new ArrayList<>(cachedOffers);
+        }
+
         if (firestore != null) {
             try {
                 ApiFuture<QuerySnapshot> future = firestore.collection("offers").get();
@@ -199,6 +238,9 @@ public class FirebaseService {
                         offer.setId(doc.getId());
                         offers.add(offer);
                     }
+                    cachedOffers.clear();
+                    cachedOffers.addAll(offers);
+                    lastOffersCacheTime = System.currentTimeMillis();
                     return offers;
                 }
             } catch (Exception e) {
@@ -220,6 +262,9 @@ public class FirebaseService {
             }
         }
         memoryOffers.put(offer.getId(), offer);
+        cachedOffers.removeIf(o -> o.getId() != null && o.getId().equals(offer.getId()));
+        cachedOffers.add(offer);
+        lastOffersCacheTime = System.currentTimeMillis();
         return offer;
     }
 
@@ -231,6 +276,8 @@ public class FirebaseService {
                 System.err.println("Firestore offer delete error: " + e.getMessage());
             }
         }
+        cachedOffers.removeIf(o -> o.getId() != null && o.getId().equals(id));
+        lastOffersCacheTime = System.currentTimeMillis();
         return memoryOffers.remove(id) != null;
     }
 
@@ -244,6 +291,7 @@ public class FirebaseService {
                 for (QueryDocumentSnapshot doc : docs) {
                     Order order = doc.toObject(Order.class);
                     order.setId(doc.getId());
+                    memoryOrders.put(order.getId(), order);
                     list.add(order);
                 }
                 return list;
@@ -286,8 +334,45 @@ public class FirebaseService {
         if (firestore != null) {
             try {
                 firestore.collection("orders").document(id).update("status", status);
+                if (order == null) {
+                    DocumentSnapshot doc = firestore.collection("orders").document(id).get().get();
+                    if (doc.exists()) {
+                        order = doc.toObject(Order.class);
+                        if (order != null) {
+                            order.setId(doc.getId());
+                            order.setStatus(status);
+                            memoryOrders.put(id, order);
+                        }
+                    }
+                }
             } catch (Exception e) {
                 System.err.println("Firestore order status update error: " + e.getMessage());
+            }
+        }
+        return order;
+    }
+
+    public Order updateOrderPaymentStatus(String id, String paymentStatus) {
+        Order order = memoryOrders.get(id);
+        if (order != null) {
+            order.setPaymentStatus(paymentStatus);
+        }
+        if (firestore != null) {
+            try {
+                firestore.collection("orders").document(id).update("paymentStatus", paymentStatus);
+                if (order == null) {
+                    DocumentSnapshot doc = firestore.collection("orders").document(id).get().get();
+                    if (doc.exists()) {
+                        order = doc.toObject(Order.class);
+                        if (order != null) {
+                            order.setId(doc.getId());
+                            order.setPaymentStatus(paymentStatus);
+                            memoryOrders.put(id, order);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Firestore order payment status update error: " + e.getMessage());
             }
         }
         return order;

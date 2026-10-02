@@ -18,6 +18,7 @@ public class Order {
     private String customerName;
     private String customerPhone;
     private String paymentStatus;
+    private String paymentMethod;
     private String qrCodeUrl;
     private String createdAt;
 

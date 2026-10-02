@@ -72,12 +72,12 @@ public class LlmService {
             User Query: "%s"
 
             Instructions:
-            Be polite, helpful, and concise. Highlight matching menu items or offers accurately. Keep formatting clean with emojis.
+            Be polite, helpful and concise. Highlight matching menu items or offers accurately. Keep formatting clean with emojis.
             """.formatted(menuContext.toString(), offersContext.toString(), userMessage);
     }
 
     /**
-     * Generates LLM response using Hugging Face Inference API, Google GenAI, or LangChain RAG fallback.
+     * Generates LLM response using Hugging Face Inference API, Google GenAI or LangChain RAG fallback.
      */
     public String generateLlmResponse(String userMessage, List<MenuItem> menuItems, List<Offer> offers) {
         String prompt = buildSystemPrompt(userMessage, menuItems, offers);
@@ -228,7 +228,7 @@ public class LlmService {
 
         // 4. Table booking / Reservations
         if (lower.contains("reserve") || lower.contains("table") || lower.contains("book") || lower.contains("seat")) {
-            return "You can easily reserve a table with us! Navigate to the 'Table Reservations' tab on the left sidebar to pick your preferred date, time slot, and guest count.";
+            return "You can easily reserve a table with us! Navigate to the 'Table Reservations' tab on the left sidebar to pick your preferred date, time slot and guest count.";
         }
 
         // 5. Default menu listing if user asks about menu/food/recommendations
@@ -247,7 +247,7 @@ public class LlmService {
             return sb.toString();
         }
 
-        return "Thank you for contacting TastyBite Assistant! I am here to help you explore our menu, special offers, table bookings, and order updates. What would you like to know?";
+        return "Thank you for contacting TastyBite Assistant! I am here to help you explore our menu, special offers, table bookings and order updates. What would you like to know?";
     }
 }
 
